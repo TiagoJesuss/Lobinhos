@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="eng">
+<head>
+  <meta charset="UTF-8" />
+  <title>Check Claim Status</title>
+  <style>
+    body { font-family: sans-serif; background: #111; color: #eee; display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 2rem; }
+    button { padding: 1rem 2rem; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; }
+    #status { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>🎙️ Check Claim Status</h1>
+  <button id="start">Start conversation</button>
+  <p id="status">Waiting...</p>
+
+  <script>
+    const ELEVEN_KEY = "sk_2d3861e164c9e247d9a4efec4281ee894ac19983526cceea";
+    const AGENT_ID = "agent_4901k9fmsbzafwgse6wpsnrbjh5y"; // ID do agente ElevenLabs
+
+    const startBtn = document.getElementById("start");
+    const status = document.getElementById("status");
+
+    startBtn.onclick = async () => {
+      status.textContent = "Connection to agent...";
+      
+      // Criar uma sessão Realtime
+      const response = await fetch("https://api.elevenlabs.io/v1/convai/conversation", {
+        method: "POST",
+        headers: {
+          "xi-api-key": ELEVEN_KEY,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          agent_id: AGENT_ID
+        })
+      });
+      
+      const data = await response.json();
+      console.log("Resposta ElevenLabs:", data);
+      const wsUrl = data["url"];
+      
+      status.textContent = "Session started, connecting microphone...";
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = async () => {
+        status.textContent = "On! You may speak.";
+
+        // Captura o áudio do microfone
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(stream);
+        const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+        processor.onaudioprocess = e => {
+          const inputData = e.inputBuffer.getChannelData(0);
+          const pcm16 = new Int16Array(inputData.length);
+          for (let i = 0; i < inputData.length; i++) pcm16[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7fff;
+          ws.send(pcm16);
+        };
+
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+      };
+
+      ws.onmessage = (msg) => {
+        // Reproduzir resposta de áudio recebida
+        const blob = new Blob([msg.data], { type: "audio/mpeg" });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.play();
+      };
+
+      ws.onerror = (err) => {
+        status.textContent = "Erro na ligação: " + err.message;
+      };
+
+      ws.onclose = () => {
+        status.textContent = "Conexão terminada.";
+      };
+    };
+  </script>
+</body>
+</html>
