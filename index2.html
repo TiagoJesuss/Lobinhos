@@ -53,15 +53,15 @@
   <p>Chat with an agent to know the status of your claim.</p>
 
   <button id="start">▶️ Start call</button>
+  <button id="end" disabled>⏹️ End call</button>
+  
   <p id="status"><span id="mic-indicator"></span> Waiting...</p>
 
   <script>
     const startBtn = document.getElementById("start");
+    const endBtn = document.getElementById("end");
     const status = document.getElementById("status");
     const micIndicator = document.getElementById("mic-indicator");
-
-    let ws;
-    let audioContext, processor, source, stream;
 
     function updateStatus(text, active = false) {
       status.textContent = text;
@@ -71,15 +71,35 @@
     async function startConversation() {
       updateStatus("🛰️ Starting session with agent...");
       startBtn.disabled = true;
-      document.getElementById('run').addEventListener('click', () => {
-            fetch('http://127.0.0.1:5000/run-script', { method: 'POST' })
-                .then(response => response.json())
-                .then(data => alert(data.status))
-                .catch(err => alert('Erro: ' + err)); });
-      
+      try {
+        const response = await fetch('http://127.0.0.1:5000/run-script', { method: 'POST' });
+        const data = await response.json();
+        alert(data.status);
+        updateStatus("✅ Session started.", true);
+        endBtn.disabled = false;
+      } catch (e) {
+        console.error(e);
+        updateStatus("❌ Error starting conversation.");
+      } finally {
+        startBtn.disabled = false;
+      }
+    }
+    async function endConversation() {
+      updateStatus("🔴 Ending session...");
+      endBtn.disabled = true;
+      try {
+        const response = await fetch('http://127.0.0.1:5000/stop-script', { method: 'POST' });
+        const data = await response.json();
+        alert(data.status || "Call ended.");
+        updateStatus("👋 Session ended.", false);
+      } catch (e) {
+        console.error(e);
+        updateStatus("❌ Error ending conversation.");
+      }
     }
 
     startBtn.onclick = startConversation;
+    endBtn.onclick = endConversation;
   </script>
 </body>
 </html>
